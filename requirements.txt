@@ -1,0 +1,15 @@
+pandas
+numpy
+sentence-transformers
+umap-learn
+hdbscan
+scikit-learn
+beautifulsoup4
+seaborn
+matplotlib
+wordcloud
+pyyaml
+faiss-cpu
+pytz
+pytest
+jupyter
