@@ -3,7 +3,7 @@ numpy
 sentence-transformers
 umap-learn
 hdbscan
-scikit-learn
+sklearn
 beautifulsoup4
 seaborn
 matplotlib
