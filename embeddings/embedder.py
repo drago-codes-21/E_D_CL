@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Sequence
 
 import numpy as np
-import torch
 from sentence_transformers import SentenceTransformer
+
+from utils.hardware import detect_torch_device, describe_device
 
 logger = logging.getLogger(__name__)
 
@@ -31,15 +32,6 @@ class SentenceEmbedder:
         self.model_path = model_path
         self.model: SentenceTransformer | None = None
 
-    def _resolve_device(self) -> str:
-        if self.device.lower() != "auto":
-            return self.device
-        if torch.cuda.is_available():
-            return "cuda"
-        if torch.backends.mps.is_available():  # type: ignore[attr-defined]
-            return "mps"
-        return "cpu"
-
     def _ensure_model(self) -> SentenceTransformer:
         if self.model is None:
             self.load()
@@ -47,14 +39,17 @@ class SentenceEmbedder:
         return self.model
 
     def load(self) -> None:
+        chosen_device = detect_torch_device(self.device)
+        logger.info("Embedding device resolved to %s", describe_device(chosen_device))
+
         if self.model_path:
             if not self.model_path.exists():
                 raise FileNotFoundError(f"Local model path not found: {self.model_path}")
             logger.info("Loading embedding model from local path: %s", self.model_path)
-            self.model = SentenceTransformer(str(self.model_path), device=self._resolve_device())
+            self.model = SentenceTransformer(str(self.model_path), device=chosen_device)
         else:
             logger.info("Loading embedding model by name: %s", self.model_name)
-            self.model = SentenceTransformer(self.model_name, device=self._resolve_device())
+            self.model = SentenceTransformer(self.model_name, device=chosen_device)
 
     def encode(self, texts: Sequence[str]) -> np.ndarray:
         model = self._ensure_model()

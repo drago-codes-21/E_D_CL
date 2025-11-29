@@ -24,6 +24,7 @@ from preprocessing.loader import load_emails, save_processed
 from preprocessing.normalizer import combine_and_normalize
 from reporting.cluster_summary import build_cluster_summary, collect_sample_emails
 from utils.reproducibility import set_global_seed
+from utils.progress import PipelineProgress
 from visualization.bar_charts import plot_cluster_sizes
 from visualization.dendrogram import plot_hdbscan_tree
 from visualization.scatter_plot import plot_umap_scatter
@@ -75,6 +76,19 @@ def main() -> None:
     setup_logging(settings.logging.config_file)
     set_global_seed(settings.reproducibility.seed)
     logger = logging.getLogger("email_clustering")
+    progress = PipelineProgress(
+        [
+            "Load raw data",
+            "Normalize text",
+            "Generate embeddings",
+            "Dimensionality reduction & clustering",
+            "Reporting outputs",
+            "Mailbox mapping",
+            "Stability sweep",
+            "Visualization",
+        ],
+        logger,
+    )
 
     df_raw = load_emails(
         settings.paths.input_csv,
@@ -82,6 +96,7 @@ def main() -> None:
         settings.preprocessing.text_column_subject,
         settings.preprocessing.text_column_body,
     )
+    progress.advance(f"Loaded {len(df_raw):,} rows")
     df_norm = combine_and_normalize(
         df_raw,
         settings.preprocessing,
@@ -89,6 +104,7 @@ def main() -> None:
         settings.ingestion.attachment_delimiter,
     )
     save_processed(df_norm, settings.paths.cleaned_csv)
+    progress.advance(f"Normalized data -> {len(df_norm):,} rows")
 
     texts = df_norm["clean_text"].tolist()
     if not texts:
@@ -104,6 +120,7 @@ def main() -> None:
         model_path=settings.embeddings.model_path,
     )
     embeddings = embedder.generate_embeddings(texts, settings.paths.embeddings_npy, use_memmap=settings.embeddings.use_memmap)
+    progress.advance("Embeddings generated")
 
     reduced, _ = reduce_embeddings(
         embeddings,
@@ -129,6 +146,7 @@ def main() -> None:
         top_k=settings.keywords.top_k,
     )
     save_cluster_names(cluster_keywords, settings.paths.cluster_names_json)
+    progress.advance("Dimensionality reduction + clustering complete")
 
     probabilities = getattr(clusterer, "probabilities_", None)
     persistence = getattr(clusterer, "cluster_persistence_", None)
@@ -159,6 +177,7 @@ def main() -> None:
         settings.labeling.sample_emails_per_cluster,
     )
     save_sample_emails(sample_emails, settings.paths.sample_emails_json)
+    progress.advance("Reporting artifacts saved")
 
     if settings.labeling.llm_summary.enabled:
         subject_samples = {cluster_id: [item["subject"] for item in items] for cluster_id, items in sample_emails.items()}
@@ -174,6 +193,7 @@ def main() -> None:
 
     mailbox_mapping = build_mailbox_cluster_mapping(df_norm, labels, settings.preprocessing.mailbox_column)
     save_mailbox_mapping(mailbox_mapping, settings.paths.mailbox_mapping_csv)
+    progress.advance("Mailbox mapping exported")
 
     sweep_df = run_parameter_sweep(
         embeddings,
@@ -186,6 +206,9 @@ def main() -> None:
     if not sweep_df.empty:
         settings.paths.parameter_sweep_csv.parent.mkdir(parents=True, exist_ok=True)
         sweep_df.to_csv(settings.paths.parameter_sweep_csv, index=False)
+        progress.advance(f"Stability sweep completed ({len(sweep_df):,} runs)")
+    else:
+        progress.advance("Stability sweep skipped or disabled")
 
     plots_dir = settings.paths.plots_dir
     plots_dir.mkdir(parents=True, exist_ok=True)
@@ -200,6 +223,7 @@ def main() -> None:
     plot_cluster_sizes(labels, plots_dir / "cluster_sizes.png", figsize=(8, 6), dpi=settings.visualization.dpi)
     # generate_wordclouds(cluster_keywords, plots_dir)
     plot_hdbscan_tree(clusterer, plots_dir / "hdbscan_tree.png", figsize=tuple(settings.visualization.figsize), dpi=settings.visualization.dpi)
+    progress.advance("Visualization assets generated")
 
     logger.info("Pipeline complete. Metrics: %s", json.dumps(metrics))
 
