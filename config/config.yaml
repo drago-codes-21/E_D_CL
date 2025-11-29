@@ -1,0 +1,144 @@
+# ============================================
+# CONFIG FOR SYNTHETIC 10K EMAIL DATA (15 MAILBOXES)
+# EXPECTED: ~4–5 CLUSTERS AFTER RATIONALIZATION
+# ============================================
+
+paths:
+  input_csv: data/raw/synthetic_emails.csv
+  cleaned_csv: data/processed/cleaned_emails.csv
+  embeddings_npy: data/embeddings/embeddings.npy
+  results_csv: output/results.csv
+  cluster_names_json: output/cluster_names.json
+  cluster_summary_json: output/cluster_summary.json
+  sample_emails_json: output/cluster_samples.json
+  mailbox_mapping_csv: output/mailbox_cluster_mapping.csv
+  parameter_sweep_csv: output/parameter_sweep.csv
+  plots_dir: output/plots
+
+logging:
+  config_file: config/logging.conf
+
+reproducibility:
+  seed: 42
+
+# --------------------------------------------
+# INGESTION
+# --------------------------------------------
+ingestion:
+  required_columns: [subject, body, sender, received_time, attachments, mailbox]
+  timestamp_column: received_time
+  timestamp_format: "%Y-%m-%d %H:%M:%S"
+  timezone: UTC
+  lookback_days: 180
+  sender_column: sender
+  mailbox_column: mailbox
+  attachments_column: attachments
+  attachment_delimiter: ";"
+  drop_duplicates: true
+
+# --------------------------------------------
+# PREPROCESSING
+# --------------------------------------------
+preprocessing:
+  text_column_subject: subject
+  text_column_body: body
+  sender_column: sender
+  timestamp_column: received_time
+  mailbox_column: mailbox
+  attachments_column: attachments
+
+  include_sender: true
+  include_timestamp: false      # this synthetic data timestamps have no semantic meaning
+  include_attachments: true
+
+  attachment_join_token: " "
+  min_chars: 40
+  lowercase: true
+  punctuation_spacing: true
+  extra_boilerplate_phrases:
+    - "sent from my iphone"
+    - "please consider the environment"
+    - "forwarded message"
+    - "regards"
+
+# --------------------------------------------
+# EMBEDDINGS
+# --------------------------------------------
+embeddings:
+  model_name: all-mpnet-base-v2
+  batch_size: 64
+  device: auto
+  normalize: true
+  model_path: models/all-mpnet-base-v2
+  use_memmap: true
+
+# --------------------------------------------
+# DIMENSIONALITY REDUCTION 
+# (Balanced for 10k emails → clearer separability)
+# --------------------------------------------
+dimensionality_reduction:
+  n_neighbors: 40
+  min_dist: 0.15
+  n_components: 15
+  metric: cosine
+
+# --------------------------------------------
+# CLUSTERING (KEY!)
+# Highly tuned for discovering ~4–6 clusters
+# --------------------------------------------
+clustering:
+  min_cluster_size: 600         # ~3% of data → ideal for 4–6 clusters
+  min_samples: 120
+  cluster_selection_epsilon: 0.0
+  cluster_selection_method: eom
+
+# --------------------------------------------
+# KEYWORD EXTRACTION
+# --------------------------------------------
+keywords:
+  max_features: 4000
+  ngram_range: [1, 2]
+  top_k: 8
+
+# --------------------------------------------
+# CLUSTER LABELING (LLM OPTIONAL)
+# --------------------------------------------
+labeling:
+  sample_emails_per_cluster: 4
+  llm_summary:
+    enabled: false
+    prompt_template: "Summarize the cluster based on these keywords: {keywords}"
+
+# --------------------------------------------
+# EVALUATION / STABILITY ANALYSIS 
+# (reduced for 10k dataset)
+# --------------------------------------------
+evaluation:
+  stability:
+    enabled: true
+    sample_size: 5000
+    random_state: 42
+
+    umap:
+      n_neighbors: [30, 40, 60]
+      min_dist: [0.10, 0.15, 0.25]
+
+    hdbscan:
+      min_cluster_size: [200, 300, 400]
+      min_samples: [60, 90, 120]
+
+# --------------------------------------------
+# VISUALIZATION
+# --------------------------------------------
+visualization:
+  random_state: 42
+  figsize: [10, 8]
+  dpi: 200
+
+# --------------------------------------------
+# RATIONALIZATION
+# (Mapping 15 noisy mailboxes → 4–5 natural semantic clusters)
+# --------------------------------------------
+rationalization:
+  mailbox_count: 15
+  expected_cluster_range: [4, 6]

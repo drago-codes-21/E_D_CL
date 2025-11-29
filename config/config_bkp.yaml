@@ -1,0 +1,100 @@
+# Config tuned for collapsing ~150 mailboxes into ~50–60 clusters
+paths:
+  input_csv: data/raw/synthetic_emails.csv
+  cleaned_csv: data/processed/cleaned_emails.csv
+  embeddings_npy: data/embeddings/embeddings.npy
+  results_csv: output/results.csv
+  cluster_names_json: output/cluster_names.json
+  cluster_summary_json: output/cluster_summary.json
+  sample_emails_json: output/cluster_samples.json
+  mailbox_mapping_csv: output/mailbox_cluster_mapping.csv
+  parameter_sweep_csv: output/parameter_sweep.csv
+  plots_dir: output/plots
+
+logging:
+  config_file: config/logging.conf
+
+reproducibility:
+  seed: 42
+
+ingestion:
+  required_columns: [subject, body, sender, received_time, attachments, mailbox]
+  timestamp_column: received_time
+  timestamp_format: null
+  timezone: UTC
+  lookback_days: 180
+  sender_column: sender
+  mailbox_column: mailbox
+  attachments_column: attachments
+  attachment_delimiter: ";"
+  drop_duplicates: true
+
+preprocessing:
+  text_column_subject: subject
+  text_column_body: body
+  sender_column: sender
+  timestamp_column: received_time
+  mailbox_column: mailbox
+  attachments_column: attachments
+  include_sender: true
+  include_timestamp: true
+  include_attachments: true
+  attachment_join_token: " "
+  min_chars: 40
+  lowercase: true
+  punctuation_spacing: true
+  extra_boilerplate_phrases:
+    - "please consider the environment before printing this email"
+
+embeddings:
+  model_name: all-mpnet-base-v2
+  batch_size: 128
+  device: auto
+  normalize: true
+  model_path: models/all-mpnet-base-v2
+  use_memmap: true
+
+dimensionality_reduction:
+  n_neighbors: 60
+  min_dist: 0.25
+  n_components: 15
+  metric: cosine
+
+clustering:
+  min_cluster_size: 200
+  min_samples: 80
+  cluster_selection_epsilon: 0.0
+  cluster_selection_method: eom
+
+keywords:
+  max_features: 5000
+  ngram_range: [1, 2]
+  top_k: 8
+
+labeling:
+  sample_emails_per_cluster: 3
+  llm_summary:
+    enabled: false
+    prompt_template: "Summarize the cluster described by keywords: {keywords}"
+
+evaluation:
+  stability:
+    enabled: true
+    sample_size: 5000
+    random_state: 42
+    umap:
+      n_neighbors: [40, 60, 80]
+      min_dist: [0.15, 0.25, 0.30]
+    hdbscan:
+      min_cluster_size: [150, 200, 250]
+      min_samples: [60, 80, 120]
+
+visualization:
+  random_state: 42
+  figsize: [10, 8]
+  dpi: 200
+
+rationalization:
+  mailbox_count: 150
+  target_cluster_range: [50, 60]
+  expected_records: 50000

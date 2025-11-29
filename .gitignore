@@ -10,12 +10,9 @@ env/
 .idea/  
 .DS_Store
 .ipynb_checkpoints
-config/*
 models/*
-reporting/*
 tests/*
 notebooks/*
 *.csv
 *.npy
 README.md
-visualization/*
